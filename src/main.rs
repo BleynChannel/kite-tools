@@ -216,8 +216,7 @@ impl App {
                         let script_path = "/usr/src/kite-tools/install.sh";
                         self.run_command_progress(script_path, vec![
                             itype.to_string(), 
-                            "--no-confirm".to_string(), 
-                            "--no-info".to_string()
+                            "--no-confirm".to_string(),
                         ]);
                     }
                 }

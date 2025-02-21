@@ -15,7 +15,7 @@ depends=(
     'tar'
     'rsync'
 )
-makedepends=('git' 'cargo')
+makedepends=('git' 'rust')
 provides=("${pkgname}")
 conflicts=("${pkgname}")
 source=("git+${url}.git")

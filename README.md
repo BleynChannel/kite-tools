@@ -82,7 +82,7 @@ kite-tools install-package
 - `q`: Quit application
 
 ## Requirements
-- Kite system scripts must be located in `/usr/local/bin/kite-tools/`
+- Kite system scripts must be located in `/usr/src/kite-tools/`
 
 ## License
 [Your License Here]
