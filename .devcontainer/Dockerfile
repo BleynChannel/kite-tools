@@ -4,15 +4,15 @@ RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
     base-devel \
     git \
-    # curl \
-    # wget \
-    # tar \
-    # rsync \
-    # rust \
+    curl \
+    wget \
+    tar \
+    rsync \
+    rust \
     vim
 
-# RUN mkdir -p /usr/src/kite-tools
-# ADD ./scripts /usr/src/kite-tools/
+RUN mkdir -p /usr/src/kite-tools
+ADD ./scripts /usr/src/kite-tools/
 
 RUN useradd -ms /bin/bash devel && \
     echo "devel ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/devel && \

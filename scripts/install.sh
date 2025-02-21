@@ -59,17 +59,33 @@ case $TYPE in
   stable)
     info "Получение ссылки на последний стабильный релиз..."
     API_URL="https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest"
-    URL=$(curl -s $API_URL | grep -oP '"tarball_url": "\K[^"]+')
+    RESPONSE=$(curl -s $API_URL)
+    VERSION=$(echo "$RESPONSE" | grep -oP '"tag_name": "\K[^"]+')
+    if [ -z "$VERSION" ]; then
+      echo "Ошибка: Не удалось получить версию релиза"
+      exit 1
+    fi
+    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/$VERSION.tar.gz"
     if [ -z "$URL" ]; then
-      echo "Ошибка: Не удалось получить ссылку на релиз"
+      echo "Ошибка: Не удалось сформировать ссылку на релиз"
       exit 1
     fi
     info "Ссылка на релиз получена: $URL"
     ;;
   developer)
+    VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/master | cut -f1)
+    if [ -z "$VERSION" ]; then
+      echo "Ошибка: Не удалось получить хеш коммита для ветки master"
+      exit 1
+    fi
     URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/master.tar.gz"
     ;;
   experimental)
+    VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/experimental | cut -f1)
+    if [ -z "$VERSION" ]; then
+      echo "Ошибка: Не удалось получить хеш коммита для ветки experimental"
+      exit 1
+    fi
     URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/experimental.tar.gz"
     ;;
 esac
@@ -118,9 +134,18 @@ info "Копирование системных файлов..."
 sudo cp "$PKG_DIR/installed-apps.lst" /etc/
 sudo cp "$PKG_DIR/os-release" /etc/
 
+# Шаг 11: Измение BUILD_ID и VERSION_ID в os-release
+info "Применение новых изменений в системе..."
+sudo sed -i "s/BUILD_ID=.*$/BUILD_ID=$TYPE/" /etc/os-release
+sudo sed -i "s/VERSION_ID=.*$/VERSION_ID=$VERSION/" /etc/os-release
+
 # Очистка
 info "Очистка временных файлов..."
 rm -rf "$TEMP_DIR"
 
 info "Установка системы Kite завершена успешно!"
 
+# # Перезагрузка системы
+# info "Перезагрузка системы начнется через 5 секунд..."
+# sleep 5
+# sudo reboot

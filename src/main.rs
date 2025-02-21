@@ -15,14 +15,14 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph, ListState, Wrap, Clear},
+    widgets::{Block, Borders, List, ListItem, Paragraph, ListState, Wrap, Clear, Scrollbar, ScrollbarState, ScrollbarOrientation},
 };
 use sysinfo::{Pid, System};
 
-const OS_NAME: &str = "Arch Linux";
+const OS_NAME: &str = "Kite Linux";
 
 #[derive(Parser)]
-#[command(name = "korshun-tools")]
+#[command(name = "kite-tools")]
 #[command(about = "Система Коршун - Инструменты управления")]
 struct Cli {
     #[command(subcommand)]
@@ -65,6 +65,7 @@ struct App {
     installation_types: Vec<(&'static str, &'static str, &'static str)>,
     uninstall_type_state: ListState,
     uninstall_types: Vec<(&'static str, &'static str, &'static str)>,
+    scroll_position: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -158,6 +159,7 @@ impl App {
             installation_types,
             uninstall_type_state: ListState::default(),
             uninstall_types,
+            scroll_position: 0,
         }
     }
 
@@ -301,6 +303,7 @@ impl App {
     where
         I: AsRef<OsStr> + Send + 'static,
     {
+        self.scroll_position = 0;
         self.script_output.clear();
         self.script_last_view_state = self.view_state;
         self.view_state = ViewState::ScriptProgress;
@@ -618,10 +621,14 @@ fn run_tui() -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let mut app = App::new();
     let mut should_quit = false;
+    let mut scroll_state = ScrollbarState::new(0);
 
     while !should_quit {
         // Обновляем прогресс скрипта
         app.update_script_progress();
+
+        // Обновляем состояние скроллбара
+        scroll_state = scroll_state.content_length(app.script_output.len());
 
         terminal.draw(|frame| {
             match app.view_state {
@@ -740,7 +747,7 @@ fn run_tui() -> Result<()> {
 
                     let output_text = app.script_output
                         .iter()
-                        .rev() // Показываем последние строки
+                        .rev()
                         .take(frame.area().height as usize - 8)
                         .rev()
                         .cloned()
@@ -749,8 +756,20 @@ fn run_tui() -> Result<()> {
 
                     let output = Paragraph::new(output_text)
                         .block(Block::default().borders(Borders::ALL).title("Вывод"))
-                        .wrap(Wrap { trim: true });
+                        .wrap(Wrap { trim: true })
+                        .scroll((app.scroll_position as u16, 0));
+
                     frame.render_widget(output, chunks[1]);
+
+                    // Рендерим скроллбар
+                    frame.render_stateful_widget(
+                        Scrollbar::default()
+                            .orientation(ScrollbarOrientation::VerticalRight)
+                            .begin_symbol(Some("↑"))
+                            .end_symbol(Some("↓")),
+                        chunks[1],
+                        &mut scroll_state,
+                    );
 
                     let hints = match app.script_process {
                         Some(_) => "Выполняется программа... | Esc: Отмена",
@@ -1024,6 +1043,22 @@ fn run_tui() -> Result<()> {
                                         app.status = "Задача отменена".to_string();
                                     }
                                     app.view_state = app.script_last_view_state;
+                                }
+                                KeyCode::Up => {
+                                    app.scroll_position = app.scroll_position.saturating_sub(1);
+                                    scroll_state = scroll_state.position(app.scroll_position);
+                                }
+                                KeyCode::Down => {
+                                    app.scroll_position = app.scroll_position.saturating_add(1);
+                                    scroll_state = scroll_state.position(app.scroll_position);
+                                }
+                                KeyCode::PageUp => {
+                                    app.scroll_position = app.scroll_position.saturating_sub(10);
+                                    scroll_state = scroll_state.position(app.scroll_position);
+                                }
+                                KeyCode::PageDown => {
+                                    app.scroll_position = app.scroll_position.saturating_add(10);
+                                    scroll_state = scroll_state.position(app.scroll_position);
                                 }
                                 _ => {}
                             }

@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Флаг для отключения вывода информации
+GITHUB_USER=BleynChannel
+GITHUB_REPO=Kite-Dots
 NO_INFO=false
 
 # Функция для получения типа системы из /etc/os-release
@@ -9,7 +11,7 @@ get_system_type() {
         . /etc/os-release
         case $BUILD_ID in
             release) echo "Release" ;;
-            dev) echo "Dev" ;;
+            developer) echo "Developer" ;;
             experimental) echo "Experimental" ;;
             *) echo "Unknown" ;;
         esac
@@ -32,7 +34,7 @@ check_github_commit() {
     CURRENT_COMMIT=$2
 
     # Получаем последний коммит из репозитория с учетом ветки
-    LATEST_COMMIT=$(git ls-remote https://github.com/BleynChannel/kite.git refs/heads/$BRANCH 2>/dev/null | awk '{print $1}')
+    LATEST_COMMIT=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/$BRANCH 2>/dev/null | awk '{print $1}')
 
     # Проверяем успешность выполнения команды
     if [ $? -ne 0 ]; then
@@ -68,7 +70,7 @@ check_release_updates() {
     # Получаем последний релиз через GitHub API с обработкой ошибок
     API_RESPONSE=$(curl -s -H "Accept: application/vnd.github.v3+json" \
         -w "\nHTTP_CODE:%{http_code}" \
-        https://api.github.com/repos/BleynChannel/kite/releases/latest)
+        https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest)
 
     # Извлекаем HTTP код
     HTTP_CODE=$(echo "$API_RESPONSE" | grep 'HTTP_CODE:' | cut -d':' -f2)
@@ -108,10 +110,10 @@ check_release_updates() {
     fi
 }
 
-# Функция для проверки обновлений для Dev
+# Функция для проверки обновлений для Developer
 check_dev_updates() {
     if ! $NO_INFO; then
-        echo "Проверка обновлений для Dev..."
+        echo "Проверка обновлений для Developer..."
     fi
 
     CURRENT_COMMIT=$(get_system_version)
@@ -190,7 +192,7 @@ case $TYPE in
     Release)
     check_release_updates
     ;;
-    Dev)
+    Developer)
     check_dev_updates
     ;;
     Experimental)
