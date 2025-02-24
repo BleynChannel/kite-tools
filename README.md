@@ -60,9 +60,6 @@ kite-tools
 # Install the system
 kite-tools install
 
-# Restore the system
-kite-tools restore
-
 # Update the system
 kite-tools update
 
@@ -75,7 +72,6 @@ kite-tools install-package
 
 ## Keyboard Shortcuts (TUI Mode) (WIP)
 - `i`: Install system
-- `r`: Restore system
 - `u`: Update system
 - `c`: Uninstall system
 - `p`: Install packages
