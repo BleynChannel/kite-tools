@@ -13,6 +13,7 @@
 - Custom package installation
 
 ## Prerequisites
+- Arch Linux (A clean version is recommended)
 - Rust (latest stable version)
 - Cargo
 - Bash

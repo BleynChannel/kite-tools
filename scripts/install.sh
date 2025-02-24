@@ -128,12 +128,12 @@ case $TYPE in
     info "Ссылка на релиз получена: $URL"
     ;;
   developer)
-    VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/master | cut -f1)
+    VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/developer | cut -f1)
     if [ -z "$VERSION" ]; then
-      echo "Ошибка: Не удалось получить хеш коммита для ветки master"
+      echo "Ошибка: Не удалось получить хеш коммита для ветки developer"
       exit 1
     fi
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/master.tar.gz"
+    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/developer.tar.gz"
     ;;
   experimental)
     VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/experimental | cut -f1)
