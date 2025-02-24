@@ -17,6 +17,7 @@ show_help() {
   -h, --help     Показать эту справку
   --no-confirm   Пропустить подтверждение установки
   --no-info      Отключить информационные сообщения
+  --no-reboot    Пропустить перезагрузку системы
 
 Примеры:
   $0 stable
@@ -35,6 +36,7 @@ fi
 TYPE=""
 NO_CONFIRM=false
 NO_INFO=false
+NO_REBOOT=false
 
 for arg in "$@"; do
   case $arg in
@@ -46,6 +48,9 @@ for arg in "$@"; do
       ;;
     --no-info)
       NO_INFO=true
+      ;;
+    --no-reboot)
+      NO_REBOOT=true
       ;;
     stable|developer|experimental)
       TYPE=$arg
@@ -92,27 +97,26 @@ fi
 
 TEMP_DIR=$(mktemp -d)
 
-# Шаг 3: Обновление системы и установка yay
+# Шаг 3: Обновление пакетов и установка yay
 if [ -f /var/lib/pacman/db.lck ]; then
   echo "Ошибка: База данных pacman заблокирована. Возможно, другой процесс pacman уже запущен."
   echo "Попробуйте выполнить команду: sudo rm /var/lib/pacman/db.lck"
   exit 1
 fi
 
-info "Обновление системы..."
+info "Обновление пакетов..."
 sudo pacman -Syu --noconfirm
 if ! command -v yay &> /dev/null; then
   info "Установка yay..."
   git clone https://aur.archlinux.org/yay.git "$TEMP_DIR/yay"
   (cd "$TEMP_DIR/yay" && makepkg -si --noconfirm)
-  rm -rf "$TEMP_DIR/yay"
+  (cd "$TEMP_DIR" && rm -rf "$TEMP_DIR/yay")
 fi
 
 # Шаг 4: Скачивание и распаковка пакета
 info "Скачивание установочного пакета..."
 case $TYPE in
   stable)
-    info "Получение ссылки на последний стабильный релиз..."
     API_URL="https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest"
     RESPONSE=$(curl -s $API_URL)
     VERSION=$(echo "$RESPONSE" | grep -oP '"tag_name": "\K[^"]+')
@@ -125,7 +129,6 @@ case $TYPE in
       echo "Ошибка: Не удалось сформировать ссылку на релиз"
       exit 1
     fi
-    info "Ссылка на релиз получена: $URL"
     ;;
   developer)
     VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/developer | cut -f1)
@@ -144,6 +147,7 @@ case $TYPE in
     URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/experimental.tar.gz"
     ;;
 esac
+info "Ссылка получена: $URL"
 
 wget -q "$URL" -O "$TEMP_DIR/kite.tar.gz"
 info "Распаковка пакета..."
@@ -181,6 +185,8 @@ rm -rf "$TEMP_DIR"
 info "Установка системы Kite завершена успешно!"
 
 # Перезагрузка системы
-# info "Перезагрузка системы начнется через 5 секунд..."
-# sleep 5
-# sudo reboot
+if [ "$NO_REBOOT" = false ]; then
+  info "Перезагрузка системы начнется через 5 секунд..."
+  sleep 5
+  sudo reboot
+fi

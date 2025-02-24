@@ -63,6 +63,7 @@ struct App {
     installation_types: Vec<(&'static str, &'static str, &'static str)>,
     uninstall_type_state: ListState,
     uninstall_types: Vec<(&'static str, &'static str, &'static str)>,
+    new_version: Option<String>,
     scroll_position: usize,
 }
 
@@ -156,6 +157,7 @@ impl App {
             installation_types,
             uninstall_type_state: ListState::default(),
             uninstall_types,
+            new_version: None,
             scroll_position: 0,
         }
     }
@@ -503,7 +505,8 @@ impl App {
     fn start_update(&mut self) {
         // let script_path = format!("{}/.local/share/bin/update.sh", home_path());
         let script_path = "/usr/src/kite-tools/update.sh";
-        self.run_command_progress(script_path, vec![]);
+        let version = self.new_version.take().unwrap();
+        self.run_command_progress(script_path, vec!["--no-confirm".to_string(), "-v".to_string(), version]);
     }
 
     fn handle_uninstall(&mut self) {
@@ -841,6 +844,7 @@ fn run_tui() -> Result<()> {
                                     Вы действительно хотите обновить систему?", version);
                                 app.set_confirmation(confirmation, move |this| {
                                     this.view_state = ViewState::UpdateCheck;
+                                    this.new_version = Some(version);
                                     this.run_selected_action();
                                 });
                             } else {

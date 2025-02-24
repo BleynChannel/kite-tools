@@ -3,29 +3,39 @@
 # Флаг для отключения вывода информации
 GITHUB_USER=BleynChannel
 GITHUB_REPO=Kite-Dots
+
+# Функция для вывода справки
+show_help() {
+  cat <<EOF
+Использование: $0 [опции]
+
+Опции:
+  -h, --help     Показать эту справку
+  -t, --type     Тип системы (stable, developer, experimental)
+  --no-info      Отключить информационные сообщения
+
+Примеры:
+  $0
+  $0 -t stable --no-info
+EOF
+  exit 0
+}
+
+# Обработка аргументов
+TYPE=""
 NO_INFO=false
 
-# Функция для получения типа системы из /etc/os-release
-get_system_type() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case $BUILD_ID in
-            release) echo "Release" ;;
-            developer) echo "Developer" ;;
-            experimental) echo "Experimental" ;;
-            *) echo "Unknown" ;;
-        esac
-    else
-        echo "Unknown"
-    fi
+# Функция для вывода информации
+info() {
+  if [ "$NO_INFO" = false ]; then
+    echo "[INFO] $1"
+  fi
 }
 
 get_system_version() {
     if [ -f /etc/os-release ]; then
-        . /etc/os-release
+        VERSION_ID=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
         echo $VERSION_ID
-    else
-        echo "Unknown"
     fi
 }
 
@@ -58,11 +68,9 @@ check_github_commit() {
     fi
 }
 
-# Функция для проверки обновлений для Release
-check_release_updates() {
-    if ! $NO_INFO; then
-        echo "Проверка обновлений для Release..."
-    fi
+# Функция для проверки обновлений для Stable
+check_stable_updates() {
+    info "Проверка обновлений для Stable..."
 
     # Получаем текущую версию
     CURRENT_VERSION=$(get_system_version)
@@ -78,10 +86,8 @@ check_release_updates() {
 
     # Проверяем успешность запроса
     if [ "$HTTP_CODE" != "200" ]; then
-        if ! $NO_INFO; then
-            echo "Ошибка: не удалось получить данные от GitHub API (код $HTTP_CODE)" >&2
-            echo "Ответ API: $JSON_RESPONSE" >&2
-        fi
+        info "Ошибка: не удалось получить данные от GitHub API (код $HTTP_CODE)" >&2
+        info "Ответ API: $JSON_RESPONSE" >&2
         return 1
     fi
 
@@ -90,44 +96,36 @@ check_release_updates() {
 
     # Проверяем успешность выполнения
     if [ -z "$LATEST_RELEASE" ]; then
-        if ! $NO_INFO; then
-            echo "Ошибка: не удалось получить информацию о релизе" >&2
-        fi
+        info "Ошибка: не удалось получить информацию о релизе" >&2
         return 1
     fi
 
     # Сравниваем версии
     if [ "$LATEST_RELEASE" != "$CURRENT_VERSION" ]; then
         if ! $NO_INFO; then
-            echo "Доступно обновление! Последняя версия: $LATEST_RELEASE"
+            info "Доступно обновление! Последняя версия: $LATEST_RELEASE"
         else
             echo $LATEST_RELEASE
         fi
     else
-        if ! $NO_INFO; then
-            echo "Новые обновления не найдены."
-        fi
+        info "Новые обновления не найдены."
     fi
 }
 
 # Функция для проверки обновлений для Developer
-check_dev_updates() {
-    if ! $NO_INFO; then
-        echo "Проверка обновлений для Developer..."
-    fi
+check_developer_updates() {
+    info "Проверка обновлений для Developer..."
 
     CURRENT_COMMIT=$(get_system_version)
     LATEST_VERSION=$(check_github_commit developer $CURRENT_COMMIT)
 
     case $LATEST_VERSION in
         Unknown)
-        if ! $NO_INFO; then
-            echo "Новые обновления не нашлись."
-        fi
+        info "Новые обновления не нашлись."
         ;;
         *)
         if ! $NO_INFO; then
-            echo "Доступно обновление! Последний коммит: $LATEST_VERSION"
+            info "Доступно обновление! Последний коммит: $LATEST_VERSION"
         else
             echo $LATEST_VERSION
         fi
@@ -137,22 +135,18 @@ check_dev_updates() {
 
 # Функция для проверки обновлений для Experimental
 check_experimental_updates() {
-    if ! $NO_INFO; then
-        echo "Проверка обновлений для Experimental..."
-    fi
+    info "Проверка обновлений для Experimental..."
     
     CURRENT_COMMIT=$(get_system_version)
     LATEST_VERSION=$(check_github_commit experimental $CURRENT_COMMIT)
 
     case $LATEST_VERSION in
         Unknown)
-        if ! $NO_INFO; then
-            echo "Новые обновления не нашлись."
-        fi
+        info "Новые обновления не нашлись."
         ;;
         *)
         if ! $NO_INFO; then
-            echo "Доступно обновление! Последний коммит: $LATEST_VERSION"
+            info "Доступно обновление! Последний коммит: $LATEST_VERSION"
         else
             echo $LATEST_VERSION
         fi
@@ -161,47 +155,51 @@ check_experimental_updates() {
 }
 
 # Основная логика скрипта
-TYPE=""
 
-# Парсинг аргументов командной строки
 while [[ $# -gt 0 ]]; do
-    key="$1"
-    case $key in
-        -t|--type)
+  case $1 in
+    -h|--help)
+      show_help
+      ;;
+    -t|--type)
+      if [[ -n $2 ]]; then
         TYPE="$2"
         shift
-        shift
-        ;;
-        --no-info)
-        NO_INFO=true
-        shift
-        ;;
-        *)
-        shift
-        ;;
-    esac
+      else
+        echo "Ошибка: Не указан тип системы после флага -t|--type"
+        exit 1
+      fi
+      ;;
+    --no-info)
+      NO_INFO=true
+      ;;
+    *)
+      echo "Ошибка: Неизвестный аргумент '$1'"
+      show_help
+      exit 1
+      ;;
+  esac
+  shift
 done
 
 # Если тип не указан через флаг, пытаемся получить его из /etc/os-release
 if [ -z "$TYPE" ]; then
-    TYPE=$(get_system_type)
+    TYPE=$(grep '^BUILD_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 fi
 
 # Проверка обновлений в зависимости от типа системы
 case $TYPE in
-    Release)
-    check_release_updates
+    stable)
+    check_stable_updates
     ;;
-    Developer)
-    check_dev_updates
+    developer)
+    check_developer_updates
     ;;
-    Experimental)
+    experimental)
     check_experimental_updates
     ;;
     *)
-    echo "Unknown system type: $TYPE"
+    echo "Неизвестный тип системы: $TYPE"
     exit 1
     ;;
 esac
-
-exit 0
