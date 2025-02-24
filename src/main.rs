@@ -33,8 +33,6 @@ struct Cli {
 enum Commands {
     /// Установка системы
     Install,
-    /// Восстановление системы
-    Repair,
     /// Обновление системы
     Update,
     /// Очистка системы
@@ -91,7 +89,6 @@ impl App {
     fn new() -> Self {
         let menu_items = vec![
             ("Установка системы", "install"),
-            ("Восстановление системы", "repair"),
             ("Обновление системы", "update"),
             ("Очистка системы", "uninstall"),
             ("Установка дополнительных пакетов", "install_package"),
@@ -191,7 +188,6 @@ impl App {
                 if let Some(selected) = self.menu_state.selected() {
                     match self.menu_items[selected].1 {
                         "install" => self.handle_install(),
-                        "repair" => self.handle_repair(),
                         "update" => self.handle_update(),
                         "uninstall" => self.handle_uninstall(),
                         "install_package" => self.load_packages(),
@@ -476,29 +472,6 @@ impl App {
         }
     }
 
-    fn handle_repair(&mut self) {
-        match get_os_name() {
-            Some(os_name) if os_name.contains(OS_NAME) => {
-                let confirmation = "Вы действительно хотите восстановить систему?\n\
-                                            Все пользовательские данные будут восстановлены до заводских настроек.".to_string();
-                // let script_path = format!("{}/.local/share/bin/repair.sh", home_path());
-                let script_path = "/usr/src/kite-tools/repair.sh";
-                self.set_confirmation(confirmation, move |this| {
-                    this.run_command_progress(script_path, vec![]);
-                });
-            }
-            Some(os_name) => {
-                self.set_error(format!(
-                    "Восстановление не поддерживается для данной операционной системы: {}",
-                    os_name
-                ));
-            }
-            None => {
-                self.set_error("Не удалось определить операционную систему".to_string());
-            }
-        }
-    }
-
     fn handle_update(&mut self) {
         match get_os_name() {
             Some(os_name) if os_name.contains(OS_NAME) => {
@@ -567,7 +540,7 @@ impl App {
             let uninstall_arg = uninstall_type.1.to_string();
             
             self.set_confirmation(confirmation.to_string(), move |this| {
-                this.run_command_progress(script_path, vec![uninstall_arg]);
+                this.run_command_progress(script_path, vec![uninstall_arg, "--no-confirm".to_string()]);
             });
         }
     }
@@ -1187,14 +1160,6 @@ fn main() -> Result<()> {
     //     Some(Commands::Install) => {
     //         let mut app = App::new();
     //         app.run_script("install", None::<std::iter::Empty<&str>>);
-    //         println!("{}", app.status);
-    //         if let Some(error) = app.error {
-    //             eprintln!("Ошибка: {}", error);
-    //         }
-    //     }
-    //     Some(Commands::Repair) => {
-    //         let mut app = App::new();
-    //         app.run_script("repair", None::<std::iter::Empty<&str>>);
     //         println!("{}", app.status);
     //         if let Some(error) = app.error {
     //             eprintln!("Ошибка: {}", error);
