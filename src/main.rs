@@ -546,9 +546,9 @@ impl App {
     }
 }
 
-fn home_path() -> String {
-    std::env::var("HOME").unwrap_or_else(|_| ".".to_string())
-}
+// fn home_path() -> String {
+//     std::env::var("HOME").unwrap_or_else(|_| ".".to_string())
+// }
 
 // Функция для проверки OS
 fn get_os_name() -> Option<String> {

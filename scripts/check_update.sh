@@ -117,7 +117,7 @@ check_dev_updates() {
     fi
 
     CURRENT_COMMIT=$(get_system_version)
-    LATEST_VERSION=$(check_github_commit master $CURRENT_COMMIT)
+    LATEST_VERSION=$(check_github_commit developer $CURRENT_COMMIT)
 
     case $LATEST_VERSION in
         Unknown)
