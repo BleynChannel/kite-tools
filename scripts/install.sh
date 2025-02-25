@@ -105,7 +105,7 @@ if [ -f /var/lib/pacman/db.lck ]; then
 fi
 
 info "Обновление пакетов..."
-sudo pacman -Syu --noconfirm
+sudo pacman -Syu --noconfirm git git-lfs
 if ! command -v yay &> /dev/null; then
   info "Установка yay..."
   git clone https://aur.archlinux.org/yay.git "$TEMP_DIR/yay"
@@ -124,11 +124,7 @@ case $TYPE in
       echo "Ошибка: Не удалось получить версию релиза"
       exit 1
     fi
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/$VERSION.tar.gz"
-    if [ -z "$URL" ]; then
-      echo "Ошибка: Не удалось сформировать ссылку на релиз"
-      exit 1
-    fi
+    git clone --depth 1 --branch $VERSION https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
     ;;
   developer)
     VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/developer | cut -f1)
@@ -136,7 +132,7 @@ case $TYPE in
       echo "Ошибка: Не удалось получить хеш коммита для ветки developer"
       exit 1
     fi
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/developer.tar.gz"
+    git clone --depth 1 --branch developer https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
     ;;
   experimental)
     VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/experimental | cut -f1)
@@ -144,18 +140,14 @@ case $TYPE in
       echo "Ошибка: Не удалось получить хеш коммита для ветки experimental"
       exit 1
     fi
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/experimental.tar.gz"
+    git clone --depth 1 --branch experimental https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
     ;;
 esac
-info "Ссылка получена: $URL"
+PKG_DIR="$TEMP_DIR/kite"
 
-wget -q "$URL" -O "$TEMP_DIR/kite.tar.gz"
-info "Распаковка пакета..."
-tar -xzf "$TEMP_DIR/kite.tar.gz" -C "$TEMP_DIR"
-
-# Добавляем путь к распакованной папке
-EXTRACTED_DIR=$(ls -d "$TEMP_DIR"/*/)
-PKG_DIR=$EXTRACTED_DIR
+# Инициализация и загрузка файлов через Git LFS
+info "Инициализация Git LFS..."
+(cd "$PKG_DIR" && git lfs install && git lfs pull)
 
 # Шаг 5: Запуск установочного скрипта
 if [ "$NO_INFO" = true ]; then

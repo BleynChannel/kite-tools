@@ -120,32 +120,25 @@ sudo yay -Syu --noconfirm
 
 # Шаг 5: Скачивание и распаковка пакета
 info "Скачивание установочного пакета..."
+TEMP_DIR=$(mktemp -d)
 case $TYPE in
   stable)
-    info "Получение ссылки на последний стабильный релиз..."
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/$VERSION.tar.gz"
-    if [ -z "$URL" ]; then
-      echo "Ошибка: Не удалось сформировать ссылку на релиз"
-      exit 1
-    fi
+    git clone --depth 1 --branch $VERSION https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
     ;;
   developer)
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/$VERSION.tar.gz"
+    git clone --depth 1 --branch developer https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
+    (cd "$TEMP_DIR/kite" && git checkout $VERSION)
     ;;
   experimental)
-    URL="https://github.com/$GITHUB_USER/$GITHUB_REPO/archive/$VERSION.tar.gz"
+    git clone --depth 1 --branch experimental https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
+    (cd "$TEMP_DIR/kite" && git checkout $VERSION)
     ;;
 esac
-info "Ссылка получена: $URL"
+PKG_DIR="$TEMP_DIR/kite"
 
-TEMP_DIR=$(mktemp -d)
-wget -q "$URL" -O "$TEMP_DIR/kite.tar.gz"
-info "Распаковка пакета..."
-tar -xzf "$TEMP_DIR/kite.tar.gz" -C "$TEMP_DIR"
-
-# Добавляем путь к распакованной папке
-EXTRACTED_DIR=$(ls -d "$TEMP_DIR"/*/)
-PKG_DIR=$EXTRACTED_DIR
+# Инициализация и загрузка файлов через Git LFS
+info "Инициализация Git LFS..."
+(cd "$PKG_DIR" && git lfs install && git lfs pull)
 
 # Шаг 6: Смена версии
 if [ "$NO_INFO" = true ]; then
