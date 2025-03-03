@@ -56,7 +56,7 @@ for arg in "$@"; do
       TYPE=$arg
       ;;
     *)
-      echo "Ошибка: Неизвестный аргумент '$arg'"
+      echo "Ошибка: Неизвестный аргумент '$arg'" >&2
       show_help
       exit 1
       ;;
@@ -65,7 +65,7 @@ done
 
 # Проверка типа системы
 if [ -z "$TYPE" ]; then
-  echo "Ошибка: Необходимо указать тип системы"
+  echo "Ошибка: Необходимо указать тип системы" >&2
   show_help
   exit 1
 fi
@@ -81,7 +81,7 @@ info() {
 info "Проверка системы..."
 ID=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 if [[ "$ID" == *"kite"* ]]; then
-  echo "Ошибка: Система уже установлена!"
+  echo "Ошибка: Система уже установлена!" >&2
   exit 1
 fi
 
@@ -99,8 +99,7 @@ TEMP_DIR=$(mktemp -d)
 
 # Шаг 3: Обновление пакетов и установка yay
 if [ -f /var/lib/pacman/db.lck ]; then
-  echo "Ошибка: База данных pacman заблокирована. Возможно, другой процесс pacman уже запущен."
-  echo "Попробуйте выполнить команду: sudo rm /var/lib/pacman/db.lck"
+  echo -e "Ошибка: База данных pacman заблокирована. Возможно, другой процесс pacman уже запущен.\nПопробуйте выполнить команду: sudo rm /var/lib/pacman/db.lck" >&2
   exit 1
 fi
 
@@ -121,7 +120,7 @@ case $TYPE in
     RESPONSE=$(curl -s $API_URL)
     VERSION=$(echo "$RESPONSE" | grep -oP '"tag_name": "\K[^"]+')
     if [ -z "$VERSION" ]; then
-      echo "Ошибка: Не удалось получить версию релиза"
+      echo "Ошибка: Не удалось получить версию релиза" >&2
       exit 1
     fi
     git clone --depth 1 --branch $VERSION https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
@@ -129,7 +128,7 @@ case $TYPE in
   developer)
     VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/developer | cut -f1)
     if [ -z "$VERSION" ]; then
-      echo "Ошибка: Не удалось получить хеш коммита для ветки developer"
+      echo "Ошибка: Не удалось получить хеш коммита для ветки developer" >&2
       exit 1
     fi
     git clone --depth 1 --branch developer https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
@@ -137,7 +136,7 @@ case $TYPE in
   experimental)
     VERSION=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/experimental | cut -f1)
     if [ -z "$VERSION" ]; then
-      echo "Ошибка: Не удалось получить хеш коммита для ветки experimental"
+      echo "Ошибка: Не удалось получить хеш коммита для ветки experimental" >&2
       exit 1
     fi
     git clone --depth 1 --branch experimental https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"

@@ -166,7 +166,7 @@ while [[ $# -gt 0 ]]; do
         TYPE="$2"
         shift
       else
-        echo "Ошибка: Не указан тип системы после флага -t|--type"
+        echo "Ошибка: Не указан тип системы после флага -t|--type" >&2
         exit 1
       fi
       ;;
@@ -174,7 +174,7 @@ while [[ $# -gt 0 ]]; do
       NO_INFO=true
       ;;
     *)
-      echo "Ошибка: Неизвестный аргумент '$1'"
+      echo "Ошибка: Неизвестный аргумент '$1'" >&2
       show_help
       exit 1
       ;;
@@ -199,7 +199,7 @@ case $TYPE in
     check_experimental_updates
     ;;
     *)
-    echo "Неизвестный тип системы: $TYPE"
+    echo "Неизвестный тип системы: $TYPE" >&2
     exit 1
     ;;
 esac

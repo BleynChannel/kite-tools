@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
         VERSION=$2
         shift
       else
-        echo "Ошибка: Не указана версия после флага -v|--version"
+        echo "Ошибка: Не указана версия после флага -v|--version" >&2
         exit 1
       fi
       ;;
@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
       NO_REBOOT=true
       ;;
     *)
-      echo "Ошибка: Неизвестный аргумент '$1'"
+      echo "Ошибка: Неизвестный аргумент '$1'" >&2
       show_help
       exit 1
       ;;
@@ -71,7 +71,7 @@ info() {
 info "Проверка системы..."
 ID=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 if [[ "$ID" != *"kite"* ]]; then
-  echo "Ошибка: Обновление системы Kite невозможно! Установлена другая система."
+  echo "Ошибка: Обновление системы Kite невозможно! Установлена другая система." >&2
   exit 1
 fi
 
@@ -91,7 +91,7 @@ if [ -z "$VERSION" ]; then
       exit 0
     fi
   else
-    echo "Ошибка: Скрипт проверки обновлений не найден"
+    echo "Ошибка: Скрипт проверки обновлений не найден" >&2
     exit 1
   fi
 else
@@ -111,7 +111,7 @@ fi
 # Шаг 4: Обновление пакетов
 if [ -f /var/lib/pacman/db.lck ]; then
   echo "Ошибка: База данных pacman заблокирована. Возможно, другой процесс pacman уже запущен."
-  echo "Попробуйте выполнить команду: sudo rm /var/lib/pacman/db.lck"
+  echo "Попробуйте выполнить команду: sudo rm /var/lib/pacman/db.lck" >&2
   exit 1
 fi
 

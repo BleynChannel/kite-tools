@@ -65,6 +65,9 @@ struct App {
     uninstall_types: Vec<(&'static str, &'static str, &'static str)>,
     new_version: Option<String>,
     scroll_position: usize,
+    info_message: Option<String>,
+    show_info: bool,
+    terminal_clear: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -72,7 +75,7 @@ enum ViewState {
     MainMenu,
     PackageList,
     CustomPackageInput,
-    ScriptProgress,
+    _ScriptProgress,
     InstallationType,
     UpdateCheck,
     UninstallType,
@@ -159,6 +162,9 @@ impl App {
             uninstall_types,
             new_version: None,
             scroll_position: 0,
+            info_message: None,
+            show_info: false,
+            terminal_clear: false,
         }
     }
 
@@ -203,22 +209,14 @@ impl App {
             ViewState::CustomPackageInput => {
                 self.install_custom_packages();
             }
-            ViewState::ScriptProgress => {
+            ViewState::_ScriptProgress => {
                 self.update_script_progress();
             }
             ViewState::InstallationType => {
                 if !self.show_confirmation {
                     self.handle_installation_type();
                 } else {
-                    if let Some(selected) = self.installation_type_state.selected() {
-                        let itype = self.installation_types[selected].1;
-                        // let script_path = format!("{}/.local/share/bin/install.sh", home_path());
-                        let script_path = "/usr/src/kite-tools/install.sh";
-                        self.run_command_progress(script_path, vec![
-                            itype.to_string(), 
-                            "--no-confirm".to_string(),
-                        ]);
-                    }
+                    self.run_installation_script();
                 }
             }
             ViewState::UpdateCheck => {
@@ -301,11 +299,50 @@ impl App {
     where
         I: AsRef<OsStr> + Send + 'static,
     {
-        self.scroll_position = 0;
-        self.script_output.clear();
-        self.script_last_view_state = self.view_state;
-        self.view_state = ViewState::ScriptProgress;
-        self.script_receiver = Some(self.run_command(program, args));
+        /*
+            WIP: концепт выноса выполнение команды в отдельный сегмент программы нестабилен
+            Разработка такого концепта будет продолжена в будующем
+        */
+        
+        // self.scroll_position = 0;
+        // self.script_output.clear();
+        // self.script_last_view_state = self.view_state;
+        // self.view_state = ViewState::ScriptProgress;
+        // self.script_receiver = Some(self.run_command(program, args));
+
+        // Очищаем экран
+        execute!(io::stdout(), crossterm::terminal::Clear(crossterm::terminal::ClearType::All))
+            .expect("Failed to clear the screen");
+
+        // Отключаем режим raw
+        disable_raw_mode().expect("Failed to set raw mode");
+        execute!(io::stdout(), LeaveAlternateScreen).expect("Failed to leave alternate screen");
+
+        // Выполнение программы
+        let output = Command::new(program)
+            .args(args)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .output();
+
+        match output {
+            Ok(output) => {
+                if let Some(code) = output.status.code() {
+                    match code {
+                        0 => self.set_info("Программа завершилась успешно".to_string()),
+                        _ => self.set_error(format!("Программа завершилась с ошибкой: {code}: {}", String::from_utf8_lossy(&output.stderr))),
+                    }
+                }
+            }
+            Err(e) => {
+                self.set_error(format!("Ошибка запуска: {}", e));
+            }
+        }
+        
+        // Включаем режим raw
+        enable_raw_mode().expect("Failed to set raw mode");
+        execute!(io::stdout(), EnterAlternateScreen).expect("Failed to enter alternate screen");
+        self.terminal_clear = true;
     }
 
     fn load_packages(&mut self) {
@@ -454,8 +491,25 @@ impl App {
         self.error = None;
     }
 
+    fn set_info(&mut self, message: String) {
+        self.info_message = Some(message);
+        self.show_info = true;
+    }
+
+    fn hide_info(&mut self) {
+        self.show_info = false;
+        self.info_message = None;
+    }
+
+    fn set_view_state(&mut self, view_state: ViewState) {
+        self.view_state = view_state;
+        self.terminal_clear = true;
+        // execute!(io::stdout(), crossterm::terminal::Clear(crossterm::terminal::ClearType::All))
+        //     .expect("Failed to clear the screen");
+    }
+
     fn handle_install(&mut self) {
-        self.view_state = ViewState::InstallationType;
+        self.set_view_state(ViewState::InstallationType);
         self.installation_type_state.select(Some(0));
     }
 
@@ -494,7 +548,7 @@ impl App {
     fn check_updates(&mut self) {
         self.script_output.clear();
         self.script_last_view_state = self.view_state;
-        self.view_state = ViewState::UpdateCheck;
+        self.set_view_state(ViewState::UpdateCheck);
         
         // let script_path = format!("{}/.local/share/bin/check_update.sh", home_path());
         let script_path = "/usr/src/kite-tools/check_update.sh";
@@ -512,7 +566,7 @@ impl App {
     fn handle_uninstall(&mut self) {
         match get_os_name() {
             Some(os_name) if os_name.contains(OS_NAME) => {
-                self.view_state = ViewState::UninstallType;
+                self.set_view_state(ViewState::UninstallType);
                 self.uninstall_type_state.select(Some(0));
             }
             Some(os_name) => {
@@ -545,6 +599,18 @@ impl App {
             self.set_confirmation(confirmation.to_string(), move |this| {
                 this.run_command_progress(script_path, vec![uninstall_arg, "--no-confirm".to_string()]);
             });
+        }
+    }
+
+    fn run_installation_script(&mut self) {
+        if let Some(selected) = self.installation_type_state.selected() {
+            let itype = self.installation_types[selected].1;
+            // let script_path = format!("{}/.local/share/bin/install.sh", home_path());
+            let script_path = "/usr/src/kite-tools/install.sh";
+            self.run_command_progress(script_path, vec![
+                itype.to_string(), 
+                "--no-confirm".to_string(),
+            ]);
         }
     }
 }
@@ -594,6 +660,9 @@ fn run_tui() -> Result<()> {
     enable_raw_mode()?;
     execute!(io::stdout(), EnterAlternateScreen)?;
     
+    // Очищаем экран при старте
+    execute!(io::stdout(), crossterm::terminal::Clear(crossterm::terminal::ClearType::All))?;
+
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let mut app = App::new();
     let mut should_quit = false;
@@ -605,6 +674,11 @@ fn run_tui() -> Result<()> {
 
         // Обновляем состояние скроллбара
         scroll_state = scroll_state.content_length(app.script_output.len());
+
+        if app.terminal_clear {
+            terminal.clear()?;
+            app.terminal_clear = false;
+        }
 
         terminal.draw(|frame| {
             match app.view_state {
@@ -706,7 +780,7 @@ fn run_tui() -> Result<()> {
 
                     build_hints(frame, chunks, "Enter: Установить | Esc: Назад | q: Выход");
                 }
-                ViewState::ScriptProgress => {
+                ViewState::_ScriptProgress => {
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
                         .constraints([
@@ -829,7 +903,6 @@ fn run_tui() -> Result<()> {
 
                     build_hints(frame, chunks, hints);
 
-
                     if app.script_receiver.is_none() {
                         if !app.show_error {
                             let version = app.script_output.iter()
@@ -843,19 +916,19 @@ fn run_tui() -> Result<()> {
                                 let confirmation = format!("Найдена новая версия {}!\n\
                                     Вы действительно хотите обновить систему?", version);
                                 app.set_confirmation(confirmation, move |this| {
-                                    this.view_state = ViewState::UpdateCheck;
+                                    this.set_view_state(ViewState::UpdateCheck);
                                     this.new_version = Some(version);
                                     this.run_selected_action();
                                 });
                             } else {
                                 let confirmation = "Версия системы актуальна".to_string();
                                 app.set_confirmation(confirmation, move |this| {
-                                    this.view_state = ViewState::MainMenu;
+                                    this.set_view_state(ViewState::MainMenu);
                                 });
                             }
                         }
 
-                        app.view_state = app.script_last_view_state;
+                        app.set_view_state(app.script_last_view_state);
                     }
                 }
                 ViewState::UninstallType => {
@@ -926,6 +999,21 @@ fn run_tui() -> Result<()> {
                     frame.render_widget(error_block, error_area);
                 }
             }
+
+            // Информационное окно (если есть)
+            if app.show_info {
+                if let Some(info) = &app.info_message {
+                    let info_text = format!("{}\n\nНажмите Enter для продолжения", info);
+                    let info_block = Paragraph::new(info_text)
+                        .block(Block::default().borders(Borders::ALL).title("Информация"))
+                        .style(Style::default().fg(Color::Green))
+                        .wrap(Wrap { trim: true });
+                    
+                    let info_area = centered_rect(60, 20, frame.area());
+                    frame.render_widget(Clear, info_area); // Очищаем область под сообщением
+                    frame.render_widget(info_block, info_area);
+                }
+            }
         })?;
 
         // Добавляем неблокирующее чтение событий
@@ -945,6 +1033,11 @@ fn run_tui() -> Result<()> {
                             app.hide_confirmation();
                         },
                         KeyCode::Esc => app.hide_confirmation(),
+                        _ => {}
+                    }
+                } else if app.show_info {
+                    match key.code {
+                        KeyCode::Enter | KeyCode::Esc => app.hide_info(),
                         _ => {}
                     }
                 } else {
@@ -989,7 +1082,7 @@ fn run_tui() -> Result<()> {
                                         app.toggle_package();
                                     }
                                 }
-                                KeyCode::Esc => app.view_state = ViewState::MainMenu,
+                                KeyCode::Esc => app.set_view_state(ViewState::MainMenu),
                                 _ => {}
                             }
                         }
@@ -999,15 +1092,15 @@ fn run_tui() -> Result<()> {
                                 KeyCode::Char(c) => app.custom_package_input.push(c),
                                 KeyCode::Backspace => { app.custom_package_input.pop(); }
                                 KeyCode::Enter => app.run_selected_action(),
-                                KeyCode::Esc => app.view_state = ViewState::PackageList,
+                                KeyCode::Esc => app.set_view_state(ViewState::PackageList),
                                 _ => {}
                             }
                         }
-                        ViewState::ScriptProgress => {
+                        ViewState::_ScriptProgress => {
                             match key.code {
                                 KeyCode::Enter => {
                                     if app.script_process.is_none() {
-                                        app.view_state = app.script_last_view_state;
+                                        app.set_view_state(app.script_last_view_state);
                                     }
                                 }
                                 KeyCode::Esc => {
@@ -1019,7 +1112,7 @@ fn run_tui() -> Result<()> {
 
                                         app.status = "Задача отменена".to_string();
                                     }
-                                    app.view_state = app.script_last_view_state;
+                                    app.set_view_state(app.script_last_view_state);
                                 }
                                 KeyCode::Up => {
                                     app.scroll_position = app.scroll_position.saturating_sub(1);
@@ -1064,7 +1157,7 @@ fn run_tui() -> Result<()> {
                                     app.installation_type_state.select(Some(i));
                                 }
                                 KeyCode::Enter => app.run_selected_action(),
-                                KeyCode::Esc => app.view_state = ViewState::MainMenu,
+                                KeyCode::Esc => app.set_view_state(ViewState::MainMenu),
                                 _ => {}
                             }
                         }
@@ -1079,7 +1172,7 @@ fn run_tui() -> Result<()> {
 
                                         app.status = "Задача отменена".to_string();
                                     }
-                                    app.view_state = ViewState::MainMenu;
+                                    app.set_view_state(ViewState::MainMenu);
                                 }
                                 _ => {}
                             }
@@ -1108,7 +1201,7 @@ fn run_tui() -> Result<()> {
                                     app.uninstall_type_state.select(Some(i));
                                 }
                                 KeyCode::Enter => app.run_selected_action(),
-                                KeyCode::Esc => app.view_state = ViewState::MainMenu,
+                                KeyCode::Esc => app.set_view_state(ViewState::MainMenu),
                                 _ => {}
                             }
                         }
