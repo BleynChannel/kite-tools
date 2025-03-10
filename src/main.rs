@@ -322,7 +322,7 @@ impl App {
         let output = Command::new(program)
             .args(args)
             .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .output();
 
         match output {
