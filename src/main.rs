@@ -509,8 +509,18 @@ impl App {
     }
 
     fn handle_install(&mut self) {
-        self.set_view_state(ViewState::InstallationType);
-        self.installation_type_state.select(Some(0));
+        match get_os_name() {
+            Some(os_name) if os_name.contains(OS_NAME) => {
+                self.set_error("Система уже установлена".to_string());
+            }
+            Some(_) => {
+                self.set_view_state(ViewState::InstallationType);
+                self.installation_type_state.select(Some(0));
+            }
+            None => {
+                self.set_error("Не удалось определить операционную систему".to_string());
+            }
+        }
     }
 
     fn handle_installation_type(&mut self) {
@@ -551,16 +561,16 @@ impl App {
         self.set_view_state(ViewState::UpdateCheck);
         
         // let script_path = format!("{}/.local/share/bin/check_update.sh", home_path());
-        let script_path = "/usr/src/kite-tools/check_update.sh";
-        let rx = self.run_command(script_path, vec!["--no-info".to_string()]);
+        let script_path = "/usr/src/kite-tools/check_update.sh".to_string();
+        let rx = self.run_command("sudo", vec![script_path, "--no-info".to_string()]);
         self.script_receiver = Some(rx);
     }
 
     fn start_update(&mut self) {
         // let script_path = format!("{}/.local/share/bin/update.sh", home_path());
-        let script_path = "/usr/src/kite-tools/update.sh";
+        let script_path = "/usr/src/kite-tools/update.sh".to_string();
         let version = self.new_version.take().unwrap();
-        self.run_command_progress(script_path, vec!["--no-confirm".to_string(), "-v".to_string(), version]);
+        self.run_command_progress("sudo", vec![script_path, "--no-confirm".to_string(), "-v".to_string(), version]);
     }
 
     fn handle_uninstall(&mut self) {
@@ -593,11 +603,11 @@ impl App {
             };
 
             // let script_path = format!("{}/.local/share/bin/uninstall.sh", home_path());
-            let script_path = "/usr/src/kite-tools/uninstall.sh";
+            let script_path = "/usr/src/kite-tools/uninstall.sh".to_string();
             let uninstall_arg = uninstall_type.1.to_string();
             
             self.set_confirmation(confirmation.to_string(), move |this| {
-                this.run_command_progress(script_path, vec![uninstall_arg, "--no-confirm".to_string()]);
+                this.run_command_progress("sudo", vec![script_path, uninstall_arg, "--no-confirm".to_string()]);
             });
         }
     }
@@ -606,11 +616,8 @@ impl App {
         if let Some(selected) = self.installation_type_state.selected() {
             let itype = self.installation_types[selected].1;
             // let script_path = format!("{}/.local/share/bin/install.sh", home_path());
-            let script_path = "/usr/src/kite-tools/install.sh";
-            self.run_command_progress(script_path, vec![
-                itype.to_string(), 
-                "--no-confirm".to_string(),
-            ]);
+            let script_path = "/usr/src/kite-tools/install.sh".to_string();
+            self.run_command_progress("sudo", vec![script_path, itype.to_string(), "--no-confirm".to_string()]);
         }
     }
 }
