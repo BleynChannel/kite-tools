@@ -1,6 +1,6 @@
 # Maintainer: Bleyn <bleyn2017@gmail.com>
 pkgname=kite-tools
-pkgver=1.0.2
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Management and configuration tools for Kite system"
 arch=('x86_64')
