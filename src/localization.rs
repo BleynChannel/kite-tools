@@ -126,8 +126,8 @@ impl Localization {
             "↑/↓: Навигация | Пробел: Выбрать | Enter: Подтвердить установку | Esc: Назад | q: Выход", 
             "↑/↓: Navigation | Space: Select | Enter: Confirm Installation | Esc: Back | q: Exit"]);
         strings.insert("custom_package_input_navigation_hints", [
-            "Enter: Установить | Esc: Назад | q: Выход", 
-            "Enter: Install | Esc: Back | q: Exit"]);
+            "Enter: Установить | Esc: Назад", 
+            "Enter: Install | Esc: Back"]);
         strings.insert("script_running_hints", [
             "Выполняется программа... | Esc: Отмена", 
             "Script is running... | Esc: Cancel"]);

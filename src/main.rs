@@ -1094,7 +1094,6 @@ fn run_tui() -> Result<()> {
                         }
                         ViewState::CustomPackageInput => {
                             match key.code {
-                                KeyCode::Char('q') => should_quit = true,
                                 KeyCode::Char(c) => app.custom_package_input.push(c),
                                 KeyCode::Backspace => { app.custom_package_input.pop(); }
                                 KeyCode::Enter => app.run_selected_action(),
