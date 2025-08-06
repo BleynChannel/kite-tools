@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# Флаг для отключения вывода информации
+# Flag to disable info output
 GITHUB_USER=BleynChannel
 GITHUB_REPO=Kite-Dots
 
-# Функция для вывода справки
+# Function to show help
 show_help() {
   cat <<EOF
-Использование: $0 [опции]
+Usage: $0 [options]
 
-Опции:
-  -h, --help     Показать эту справку
-  -t, --type     Тип системы (stable, developer, experimental)
-  --no-info      Отключить информационные сообщения
+Options:
+  -h, --help     Show this help
+  -t, --type     System type (stable, developer, experimental)
+  --no-info      Disable info messages
 
-Примеры:
+Examples:
   $0
   $0 -t stable --no-info
 EOF
@@ -25,7 +25,7 @@ EOF
 TYPE=""
 NO_INFO=false
 
-# Функция для вывода информации
+# Function to output information
 info() {
   if [ "$NO_INFO" = false ]; then
     echo "[INFO] $1"
@@ -43,19 +43,19 @@ check_github_commit() {
     BRANCH=$1
     CURRENT_COMMIT=$2
 
-    # Получаем последний коммит из репозитория с учетом ветки
+    # Get the latest commit from the repository considering the branch
     LATEST_COMMIT=$(git ls-remote https://github.com/$GITHUB_USER/$GITHUB_REPO.git refs/heads/$BRANCH 2>/dev/null | awk '{print $1}')
 
-    # Проверяем успешность выполнения команды
+    # Check command execution success
     if [ $? -ne 0 ]; then
-        echo "Error: Не удалось получить данные из репозитория" >&2
+        echo "Error: Failed to get data from repository" >&2
         echo "Unknown"
         return 1
     fi
 
-    # Проверяем, что коммит получен
+    # Check that commit was received
     if [ -z "$LATEST_COMMIT" ]; then
-        echo "Error: Ветка $BRANCH не найдена" >&2
+        echo "Error: Branch $BRANCH not found" >&2
         echo "Unknown"
         return 1
     fi
@@ -68,64 +68,64 @@ check_github_commit() {
     fi
 }
 
-# Функция для проверки обновлений для Stable
+# Function to check updates for Stable
 check_stable_updates() {
-    info "Проверка обновлений для Stable..."
+    info "Checking updates for Stable..."
 
-    # Получаем текущую версию
+    # Get current version
     CURRENT_VERSION=$(get_system_version)
 
-    # Получаем последний релиз через GitHub API с обработкой ошибок
+    # Get latest release via GitHub API with error handling
     API_RESPONSE=$(curl -s -H "Accept: application/vnd.github.v3+json" \
         -w "\nHTTP_CODE:%{http_code}" \
         https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases/latest)
 
-    # Извлекаем HTTP код
+    # Extract HTTP code
     HTTP_CODE=$(echo "$API_RESPONSE" | grep 'HTTP_CODE:' | cut -d':' -f2)
     JSON_RESPONSE=$(echo "$API_RESPONSE" | sed '/HTTP_CODE:/d')
 
-    # Проверяем успешность запроса
+    # Check request success
     if [ "$HTTP_CODE" != "200" ]; then
-        info "Ошибка: не удалось получить данные от GitHub API (код $HTTP_CODE)" >&2
-        info "Ответ API: $JSON_RESPONSE" >&2
+        info "Error: Failed to get data from GitHub API (code $HTTP_CODE)" >&2
+        info "API response: $JSON_RESPONSE" >&2
         return 1
     fi
 
-    # Извлекаем версию релиза
+    # Extract release version
     LATEST_RELEASE=$(echo "$JSON_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
-    # Проверяем успешность выполнения
+    # Check execution success
     if [ -z "$LATEST_RELEASE" ]; then
-        info "Ошибка: не удалось получить информацию о релизе" >&2
+        info "Error: Failed to get release information" >&2
         return 1
     fi
 
-    # Сравниваем версии
+    # Compare versions
     if [ "$LATEST_RELEASE" != "$CURRENT_VERSION" ]; then
         if ! $NO_INFO; then
-            info "Доступно обновление! Последняя версия: $LATEST_RELEASE"
+            info "Update available! Latest version: $LATEST_RELEASE"
         else
             echo $LATEST_RELEASE
         fi
     else
-        info "Новые обновления не найдены."
+        info "No new updates found."
     fi
 }
 
-# Функция для проверки обновлений для Developer
+# Function to check updates for Developer
 check_developer_updates() {
-    info "Проверка обновлений для Developer..."
+    info "Checking updates for Developer..."
 
     CURRENT_COMMIT=$(get_system_version)
     LATEST_VERSION=$(check_github_commit developer $CURRENT_COMMIT)
 
     case $LATEST_VERSION in
         Unknown)
-        info "Новые обновления не нашлись."
+        info "No new updates found."
         ;;
         *)
         if ! $NO_INFO; then
-            info "Доступно обновление! Последний коммит: $LATEST_VERSION"
+            info "Update available! Latest commit: $LATEST_VERSION"
         else
             echo $LATEST_VERSION
         fi
@@ -133,20 +133,20 @@ check_developer_updates() {
     esac
 }
 
-# Функция для проверки обновлений для Experimental
+# Function to check updates for Experimental
 check_experimental_updates() {
-    info "Проверка обновлений для Experimental..."
+    info "Checking updates for Experimental..."
     
     CURRENT_COMMIT=$(get_system_version)
     LATEST_VERSION=$(check_github_commit experimental $CURRENT_COMMIT)
 
     case $LATEST_VERSION in
         Unknown)
-        info "Новые обновления не нашлись."
+        info "No new updates found."
         ;;
         *)
         if ! $NO_INFO; then
-            info "Доступно обновление! Последний коммит: $LATEST_VERSION"
+            info "Update available! Latest commit: $LATEST_VERSION"
         else
             echo $LATEST_VERSION
         fi
@@ -166,7 +166,7 @@ while [[ $# -gt 0 ]]; do
         TYPE="$2"
         shift
       else
-        echo "Ошибка: Не указан тип системы после флага -t|--type" >&2
+        echo "Error: System type not specified after -t|--type flag" >&2
         exit 1
       fi
       ;;
@@ -174,7 +174,7 @@ while [[ $# -gt 0 ]]; do
       NO_INFO=true
       ;;
     *)
-      echo "Ошибка: Неизвестный аргумент '$1'" >&2
+      echo "Error: Unknown argument '$1'" >&2
       show_help
       exit 1
       ;;
@@ -187,7 +187,7 @@ if [ -z "$TYPE" ]; then
     TYPE=$(grep '^BUILD_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 fi
 
-# Проверка обновлений в зависимости от типа системы
+# Check updates depending on system type
 case $TYPE in
     stable)
     check_stable_updates
@@ -199,7 +199,7 @@ case $TYPE in
     check_experimental_updates
     ;;
     *)
-    echo "Неизвестный тип системы: $TYPE" >&2
+    echo "Unknown system type: $TYPE" >&2
     exit 1
     ;;
 esac

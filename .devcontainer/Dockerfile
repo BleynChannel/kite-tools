@@ -11,9 +11,6 @@ RUN pacman -Syu --noconfirm && \
     rust \
     vim
 
-RUN mkdir -p /usr/src/kite-tools
-ADD ./scripts /usr/src/kite-tools/
-
 RUN useradd -ms /bin/bash devel && \
     echo 'devel:1234' | chpasswd
 
@@ -22,6 +19,3 @@ RUN echo "devel ALL=(ALL) ALL" >> /etc/sudoers.d/devel && \
     chmod 0440 /etc/sudoers.d/devel
 
 USER devel
-WORKDIR /home/devel/tools
-
-CMD ["BUILDDIR=/tmp/makepkg makepkg -si --noconfirm"]

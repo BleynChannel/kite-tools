@@ -3,19 +3,19 @@
 GITHUB_USER=BleynChannel
 GITHUB_REPO=Kite-Dots
 
-# Функция для вывода справки
+# Function to show help
 show_help() {
   cat <<EOF
-Использование: $0 [опции]
+Usage: $0 [options]
 
-Опции:
-  -h, --help                          Показать эту справку
-  -v <версия> | --version <версия>    Пропустить проверку и указать версию системы
-  --no-confirm                        Пропустить подтверждение установки
-  --no-info                           Отключить информационные сообщения
-  --no-reboot                         Пропустить перезагрузку системы
+Options:
+  -h, --help                          Show this help
+  -v <version> | --version <version>  Skip check and specify system version
+  --no-confirm                        Skip installation confirmation
+  --no-info                           Disable info messages
+  --no-reboot                         Skip system reboot
 
-Примеры:
+Examples:
   $0
   $0 -v 0.0.0 --no-confirm
 EOF
@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
         VERSION=$2
         shift
       else
-        echo "Ошибка: Не указана версия после флага -v|--version" >&2
+        echo "Error: Version not specified after -v|--version flag" >&2
         exit 1
       fi
       ;;
@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
       NO_REBOOT=true
       ;;
     *)
-      echo "Ошибка: Неизвестный аргумент '$1'" >&2
+      echo "Error: Unknown argument '$1'" >&2
       show_help
       exit 1
       ;;
@@ -60,124 +60,167 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# Функция для вывода информации
+# Function to output information
 info() {
   if [ "$NO_INFO" = false ]; then
     echo "[INFO] $1"
   fi
 }
 
-# Шаг 1: Проверка ID системы
-info "Проверка системы..."
+# Step 1: Check system ID
+info "Checking system..."
 ID=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 if [[ "$ID" != *"kite"* ]]; then
-  echo "Ошибка: Обновление системы Kite невозможно! Установлена другая система." >&2
+  echo "Error: Kite system update is not possible! Another system is installed." >&2
   exit 1
 fi
 
 SOURCE_DIR=$(dirname "$(realpath "$0")")
 TYPE=$(grep '^BUILD_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 
-# Шаг 2: Проверка обновления
+# Step 2: Check for updates
 if [ -z "$VERSION" ]; then
-  info "Проверка наличия обновлений..."
+  info "Checking for updates..."
   if [ -f "$SOURCE_DIR/check_update.sh" ]; then
     NEW_VERSION=$("$SOURCE_DIR/check_update.sh" -t $TYPE --no-info)
     if [ -n "$NEW_VERSION" ]; then
-      info "Найдена новая версия: $NEW_VERSION"
+      info "New version found: $NEW_VERSION"
       VERSION=$NEW_VERSION
     else
-      info "Обновлений не найдено"
+      info "No updates found"
       exit 0
     fi
   else
-    echo "Ошибка: Скрипт проверки обновлений не найден" >&2
+    echo "Error: Update check script not found" >&2
     exit 1
   fi
 else
-  info "Проверка обновлений пропущена, используется указанная версия: $VERSION"
+  info "Update check skipped, using specified version: $VERSION"
 fi
 
-# Шаг 3: Подтверждение обновления
+# Step 3: Confirm update
 if [ "$NO_CONFIRM" = false ]; then
-  read -p "Вы уверены, что хотите обновить систему Kite? (y/n) " -n 1 -r
+  read -p "Are you sure you want to update the Kite system? (y/n) " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    info "Установка отменена пользователем"
+    info "Installation canceled by user"
     exit 0
   fi
 fi
 
-# Шаг 4: Обновление пакетов
+# Step 4: Update packages
 if [ -f /var/lib/pacman/db.lck ]; then
-  echo "Ошибка: База данных pacman заблокирована. Возможно, другой процесс pacman уже запущен."
-  echo "Попробуйте выполнить команду: sudo rm /var/lib/pacman/db.lck" >&2
+  echo "Error: Pacman database is locked. Another pacman process may be running."
+  echo "Try running: rm /var/lib/pacman/db.lck" >&2
   exit 1
 fi
 
-info "Обновление пакетов..."
-sudo yay -Syu --noconfirm
+info "Updating packages..."
+if ! pacman -Syu --noconfirm; then
+    echo "Error: Failed to update packages" >&2
+    exit 1
+fi
 
-# Шаг 5: Скачивание и распаковка пакета
-info "Скачивание установочного пакета..."
+# Step 5: Download and extract package
+info "Downloading installation package..."
 TEMP_DIR=$(mktemp -d)
+chown -R "$SUDO_USER":"$SUDO_USER" "$TEMP_DIR"
 case $TYPE in
   stable)
-    git clone --depth 1 --branch $VERSION https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
+    if ! sudo -u $SUDO_USER git clone --depth 1 --branch $VERSION https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"; then
+        echo "Error: Failed to download installation package" >&2
+        exit 1
+    fi
     ;;
   developer)
-    git clone --depth 1 --branch developer https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
+    if ! sudo -u $SUDO_USER git clone --depth 1 --branch developer https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"; then
+        echo "Error: Failed to download installation package" >&2
+        exit 1
+    fi
     (cd "$TEMP_DIR/kite" && git checkout $VERSION)
     ;;
   experimental)
-    git clone --depth 1 --branch experimental https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"
+    if ! sudo -u $SUDO_USER git clone --depth 1 --branch experimental https://github.com/$GITHUB_USER/$GITHUB_REPO.git "$TEMP_DIR/kite"; then
+        echo "Error: Failed to download installation package" >&2
+        exit 1
+    fi
     (cd "$TEMP_DIR/kite" && git checkout $VERSION)
     ;;
 esac
 PKG_DIR="$TEMP_DIR/kite"
 
-# Инициализация и загрузка файлов через Git LFS
-info "Инициализация Git LFS..."
-(cd "$PKG_DIR" && git lfs install && git lfs pull)
-
-# Шаг 6: Смена версии
-if [ "$NO_INFO" = true ]; then
-    info "Удаление старой версии..."
-    bash "$SOURCE_DIR/uninstall.sh" full --no-confirm --no-reboot --no-info
-
-    info "Запуск установочного скрипта..."
-    bash "$PKG_DIR/install.sh" --no-info
-else
-    info "Удаление старой версии..."
-    bash "$SOURCE_DIR/uninstall.sh" full --no-confirm --no-reboot
-
-    info "Запуск установочного скрипта..."
-    bash "$PKG_DIR/install.sh"
+# Initialize and download files via Git LFS
+info "Initializing Git LFS..."
+if ! (cd "$PKG_DIR" && git lfs install && git lfs pull); then
+    echo "Error: Failed to initialize Git LFS" >&2
+    exit 1
 fi
 
-# Шаг 7: Резервное копирование os-release
-info "Создание резервной копии os-release..."
-sudo cp /etc/os-release /etc/os-release.backup
+# Step 6: Change version
+if [ "$NO_INFO" = true ]; then
+    info "Removing old version..."
+    if ! bash "$SOURCE_DIR/uninstall.sh" full --no-confirm --no-reboot --no-info; then
+        echo "Error: Uninstall script failed" >&2
+        exit 1
+    fi
 
-# Шаг 8: Копирование файлов
-info "Копирование системных файлов..."
-sudo cp -f "$PKG_DIR/os-release" /etc/
-sudo cp -f "$PKG_DIR/uninstall.sh" /usr/src/kite-tools/
+    info "Running installation script..."
+    if ! bash "$PKG_DIR/install.sh" --no-info; then
+        echo "Error: Installation script failed" >&2
+        exit 1
+    fi
+else
+    info "Removing old version..."
+    if ! bash "$SOURCE_DIR/uninstall.sh" full --no-confirm --no-reboot; then
+        echo "Error: Uninstall script failed" >&2
+        exit 1
+    fi
 
-# Шаг 9: Измение BUILD_ID и VERSION_ID в os-release
-info "Применение новых изменений в системе..."
-# sudo sed -i "s/BUILD_ID=.*$/BUILD_ID=$TYPE/" /etc/os-release
-sudo sed -i "s/VERSION_ID=.*$/VERSION_ID=$VERSION/" /etc/os-release
+    info "Running installation script..."
+    if ! bash "$PKG_DIR/install.sh"; then
+        echo "Error: Installation script failed" >&2
+        exit 1
+    fi
+fi
 
-# Очистка
-info "Очистка временных файлов..."
-rm -rf "$TEMP_DIR"
+# Step 7: Backup os-release
+info "Creating os-release backup..."
+if ! cp /etc/os-release /etc/os-release.backup; then
+    echo "Error: Failed to create os-release backup" >&2
+    exit 1
+fi
 
-info "Обновление системы Kite завершена успешно!"
+# Step 8: Copy files
+info "Copying system files..."
+if ! cp -f "$PKG_DIR/os-release" /etc/; then
+    echo "Error: Failed to copy os-release" >&2
+    exit 1
+fi
+if ! cp -f "$PKG_DIR/uninstall.sh" /usr/src/kite-tools/; then
+    echo "Error: Failed to copy uninstall.sh" >&2
+    exit 1
+fi
 
-# Перезагрузка системы
+# Step 9: Change BUILD_ID and VERSION_ID in os-release
+info "Applying new changes to system..."
+# sed -i "s/BUILD_ID=.*$/BUILD_ID=$TYPE/" /etc/os-release
+if ! sed -i "s/VERSION_ID=.*$/VERSION_ID=$VERSION/" /etc/os-release; then
+    echo "Error: Failed to update os-release" >&2
+    exit 1
+fi
+
+# Cleanup
+info "Cleaning up temporary files..."
+if ! rm -rf "$TEMP_DIR"; then
+    echo "Error: Failed to clean up temporary files" >&2
+    exit 1
+fi
+
+info "Kite system update completed successfully!"
+
+# Reboot system
 if [ "$NO_REBOOT" = false ]; then
-  info "Перезагрузка системы начнется через 5 секунд..."
+  info "System reboot will start in 5 seconds..."
   sleep 5
-  sudo reboot
+  reboot
 fi
