@@ -1,3 +1,5 @@
+pub mod localization;
+
 use std::ffi::OsStr;
 use std::io::{self, BufReader, Result};
 use std::process::{Command, Stdio};
@@ -18,12 +20,14 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph, ListState, Wrap, Clear, Scrollbar, ScrollbarState, ScrollbarOrientation},
 };
 use sysinfo::{Pid, System};
+use crate::localization::{Language, L10N};
 
 const OS_NAME: &str = "Kite Linux";
+const DEFAULT_LANGUAGE: Language = Language::Russian;
 
 #[derive(Parser)]
 #[command(name = "kite-tools")]
-#[command(about = "Система Коршун - Инструменты управления")]
+#[command(about = "Korshun Management Tools")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -31,19 +35,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Установка системы
+    // Install the system
     Install,
-    /// Обновление системы
+    // Update the system
     Update,
-    /// Очистка системы
+    // Uninstall the system
     Uninstall,
-    /// Установка дополнительных пакетов
+    // Install additional packages
     InstallPackage,
 }
 
 struct App {
     menu_state: ListState,
-    menu_items: Vec<(&'static str, &'static str)>,
+    menu_items: Vec<&'static str>,
     status: String,
     error: Option<String>,
     show_error: bool,
@@ -68,6 +72,7 @@ struct App {
     info_message: Option<String>,
     show_info: bool,
     terminal_clear: bool,
+    language: Language,
 }
 
 #[derive(Clone, Copy)]
@@ -92,56 +97,54 @@ enum CommandState {
 impl App {
     fn new() -> Self {
         let menu_items = vec![
-            ("Установка системы", "install"),
-            ("Обновление системы", "update"),
-            ("Очистка системы", "uninstall"),
-            ("Установка дополнительных пакетов", "install_package"),
+            "menu_install",
+            "menu_update",
+            "menu_uninstall",
+            "menu_install_package",
         ];
         let mut state = ListState::default();
         state.select(Some(0));
         
         let installation_types = vec![
             (
-                "Stable",
+                "installation_types_stable",
                 "stable",
-                "Стабильная сборка системы, рекомендуется для повседневного использования"
+                "installation_types_description_stable"
             ),
             (
-                "Development",
+                "installation_types_developer",
                 "developer",
-                "Система с предустановленным инструментарием разработчика, \
-                 включает дополнительные инструменты для разработки"
+                "installation_types_description_developer"
             ),
             (
-                "Experimental",
+                "installation_types_experimental",
                 "experimental",
-                "Экспериментальная версия с новейшими изменениями, \
-                 может содержать нестабильные компоненты"
+                "installation_types_description_experimental"
             ),
         ];
 
         let uninstall_types = vec![
             (
-                "Очистка конфигураций",
+                "uninstall_types_config",
                 "config",
-                "Удаление пользовательских настроек и конфигурационных файлов"
+                "uninstall_types_description_config"
             ),
             (
-                "Очистка программ",
+                "uninstall_types_apps",
                 "apps",
-                "Удаление установленных программ, сохраняя пользовательские данные"
+                "uninstall_types_description_apps"
             ),
             (
-                "Полная очистка системы",
+                "uninstall_types_full",
                 "full",
-                "Полное удаление системы, включая все данные и настройки"
+                "uninstall_types_description_full"
             ),
         ];
 
         Self {
             menu_state: state,
             menu_items,
-            status: "Добро пожаловать в инструменты управления Коршун".to_string(),
+            status: L10N.get("welcome_menu_status", DEFAULT_LANGUAGE),
             error: None,
             show_error: false,
             confirmation: None,
@@ -165,6 +168,7 @@ impl App {
             info_message: None,
             show_info: false,
             terminal_clear: false,
+            language: DEFAULT_LANGUAGE,
         }
     }
 
@@ -194,11 +198,11 @@ impl App {
         match self.view_state {
             ViewState::MainMenu => {
                 if let Some(selected) = self.menu_state.selected() {
-                    match self.menu_items[selected].1 {
-                        "install" => self.handle_install(),
-                        "update" => self.handle_update(),
-                        "uninstall" => self.handle_uninstall(),
-                        "install_package" => self.load_packages(),
+                    match self.menu_items[selected] {
+                        "menu_install" => self.handle_install(),
+                        "menu_update" => self.handle_update(),
+                        "menu_uninstall" => self.handle_uninstall(),
+                        "menu_install_package" => self.load_packages(),
                         _ => {}
                     }
                 }
@@ -329,13 +333,13 @@ impl App {
             Ok(output) => {
                 if let Some(code) = output.status.code() {
                     match code {
-                        0 => self.set_info("Программа завершилась успешно".to_string()),
-                        _ => self.set_error(format!("Программа завершилась с ошибкой: {code}: {}", String::from_utf8_lossy(&output.stderr))),
+                        0 => self.set_info(L10N.get("command_success", self.language)),
+                        _ => self.set_error(L10N.get_fmt("command_error", self.language, format!("{code}: {}", String::from_utf8_lossy(&output.stderr)).as_str())),
                     }
                 }
             }
             Err(e) => {
-                self.set_error(format!("Ошибка запуска: {}", e));
+                self.set_error(L10N.get_fmt("command_error_start", self.language, e.to_string().as_str()));
             }
         }
         
@@ -350,7 +354,7 @@ impl App {
         let package_list_path = "/usr/src/kite-tools/custom_apps.lst";
         
         self.package_list.clear();
-        self.package_list.push("[ Установить свои пакеты ]".to_string());
+        self.package_list.push(L10N.get("custom_packages", self.language));
 
         if let Ok(file) = File::open(&package_list_path) {
             let packages: Vec<String> = std::io::BufReader::new(file)
@@ -388,10 +392,10 @@ impl App {
             return;
         }
 
-        let mut args: Vec<String> = vec!["-S".to_string(), "--noconfirm".to_string()];
+        let mut args: Vec<String> = vec!["pacman".to_string(), "-S".to_string(), "--noconfirm".to_string()];
         args.extend(selected_packages);
 
-        self.run_command_progress("yay", args);
+        self.run_command_progress("sudo", args);
     }
 
     fn install_custom_packages(&mut self) {
@@ -401,14 +405,14 @@ impl App {
             .collect();
 
         if packages.is_empty() {
-            self.status = "Не указаны пакеты для установки".to_string();
+            self.status = L10N.get("package_error_status", self.language);
             return;
         }
 
-        let mut args: Vec<String> = vec!["-S".to_string(), "--noconfirm".to_string()];
+        let mut args: Vec<String> = vec!["pacman".to_string(), "-S".to_string(), "--noconfirm".to_string()];
         args.extend(packages);
 
-        self.run_command_progress("yay", args);
+        self.run_command_progress("sudo", args);
         self.custom_package_input.clear();
     }
 
@@ -421,14 +425,14 @@ impl App {
             .collect();
 
         if selected_packages.is_empty() {
-            self.status = "Не выбраны пакеты для установки".to_string();
+            self.status = L10N.get("package_error_status", self.language);
             return;
         }
 
-        let mut args: Vec<String> = vec!["-S".to_string(), "--noconfirm".to_string()];
+        let mut args: Vec<String> = vec!["pacman".to_string(), "-S".to_string(), "--noconfirm".to_string()];
         args.extend(selected_packages);
 
-        self.run_command_progress("yay", args);
+        self.run_command_progress("sudo", args);
     }
 
     fn update_script_progress(&mut self) {
@@ -442,17 +446,17 @@ impl App {
                         clear_process = true;
                     }
                     CommandState::Exit => {
-                        self.error = Some("Программа завершилась с ошибкой".to_string());
+                        self.error = Some(L10N.get("command_error", self.language));
                         self.show_error = true;
                         clear_process = true;
                     }
                     CommandState::StartError(e) => {
-                        self.error = Some(format!("Ошибка запуска: {}", e).to_string());
+                        self.error = Some(L10N.get_fmt("command_error_start", self.language, e.to_string().as_str()));
                         self.show_error = true;
                         clear_process = true;
                     }
                     CommandState::WaitError(e) => {
-                        self.error = Some(format!("Ошибка выполнения: {}", e));
+                        self.error = Some(L10N.get_fmt("command_error_process", self.language, e.to_string().as_str()));
                         self.show_error = true;
                         clear_process = true;
                     }
@@ -511,26 +515,22 @@ impl App {
     fn handle_install(&mut self) {
         match get_os_name() {
             Some(os_name) if os_name.contains(OS_NAME) => {
-                self.set_error("Система уже установлена".to_string());
+                self.set_error(L10N.get("system_already_installed", self.language));
             }
             Some(_) => {
                 self.set_view_state(ViewState::InstallationType);
                 self.installation_type_state.select(Some(0));
             }
             None => {
-                self.set_error("Не удалось определить операционную систему".to_string());
+                self.set_error(L10N.get("system_not_detected", self.language));
             }
         }
     }
 
     fn handle_installation_type(&mut self) {
         if let Some(selected) = self.installation_type_state.selected() {
-            let install_type = self.installation_types[selected].0;   
-            let confirmation = format!(
-                "Вы уверены, что хотите установить версию {}?\n\
-                Все данные на диске будут удалены!",
-                install_type
-            );
+            let install_type = L10N.get(self.installation_types[selected].0, self.language);   
+            let confirmation = L10N.get_fmt("warning_installation", self.language, install_type.as_str());
 
             self.set_confirmation(confirmation, move |this| {
                 this.run_selected_action();
@@ -544,13 +544,10 @@ impl App {
                 self.check_updates();
             }
             Some(os_name) => {
-                self.set_error(format!(
-                    "Обновление не поддерживается для данной операционной системы: {}",
-                    os_name
-                ));
+                self.set_error(L10N.get_fmt("update_not_supported", self.language, os_name.as_str()));
             }
             None => {
-                self.set_error("Не удалось определить операционную систему".to_string());
+                self.set_error(L10N.get("system_not_detected", self.language));
             }
         }
     }
@@ -580,31 +577,27 @@ impl App {
                 self.uninstall_type_state.select(Some(0));
             }
             Some(os_name) => {
-                self.set_error(format!(
-                    "Обновление не поддерживается для данной операционной системы: {}",
-                    os_name
-                ));
+                self.set_error(L10N.get_fmt("update_not_supported", self.language, os_name.as_str()));
             }
             None => {
-                self.set_error("Не удалось определить операционную систему".to_string());
+                self.set_error(L10N.get("system_not_detected", self.language));
             }
         }
     }
 
     fn handle_uninstall_type(&mut self) {
         if let Some(selected) = self.uninstall_type_state.selected() {
-            let uninstall_type = self.uninstall_types[selected];
-            let confirmation = match uninstall_type.1 {
-                "config" => "Вы уверены, что хотите удалить все пользовательские настройки?",
-                "apps" => "Вы уверены, что хотите удалить все установленные программы?",
-                "full" => "ВНИМАНИЕ! Вы уверены, что хотите полностью удалить систему?\n\
-                          Все данные будут безвозвратно удалены!",
-                _ => "Подтвердите удаление",
+            let uninstall_type = self.uninstall_types[selected].1;
+            let confirmation = match uninstall_type {
+                "config" => L10N.get("warning_uninstall_config", self.language),
+                "apps" => L10N.get("warning_uninstall_apps", self.language),
+                "full" => L10N.get("warning_uninstall_full", self.language),
+                _ => L10N.get("confirm_uninstall", self.language),
             };
 
             // let script_path = format!("{}/.local/share/bin/uninstall.sh", home_path());
             let script_path = "/usr/src/kite-tools/uninstall.sh".to_string();
-            let uninstall_arg = uninstall_type.1.to_string();
+            let uninstall_arg = uninstall_type.to_string();
             
             self.set_confirmation(confirmation.to_string(), move |this| {
                 this.run_command_progress("sudo", vec![script_path, uninstall_arg, "--no-confirm".to_string()]);
@@ -701,7 +694,7 @@ fn run_tui() -> Result<()> {
                         .split(frame.area());
 
                     // Заголовок
-                    let title = Paragraph::new("Система Коршун - Инструменты управления")
+                    let title = Paragraph::new(L10N.get("app_title", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
@@ -709,11 +702,11 @@ fn run_tui() -> Result<()> {
                     // Меню
                     let menu_items: Vec<ListItem> = app.menu_items
                         .iter()
-                        .map(|(name, _)| ListItem::new(*name))
+                        .map(|name| ListItem::new(L10N.get(name, app.language)))
                         .collect();
 
                     let menu = List::new(menu_items)
-                        .block(Block::default().borders(Borders::ALL).title("Меню"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("menu", app.language)))
                         .highlight_style(Style::default().bg(Color::DarkGray))
                         .highlight_symbol(">> ");
 
@@ -721,12 +714,12 @@ fn run_tui() -> Result<()> {
 
                     // Статус
                     let status = Paragraph::new(app.status.clone())
-                        .block(Block::default().borders(Borders::ALL).title("Статус"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("status", app.language)))
                         .wrap(Wrap { trim: true });
                     frame.render_widget(status, chunks[2]);
 
                     if !app.show_confirmation {
-                        build_hints(frame, chunks, "↑/↓: Навигация | Enter: Выбрать | q: Выход");
+                        build_hints(frame, chunks, L10N.get("main_menu_navigation_hints", app.language));
                     }
                 }
                 ViewState::PackageList => {
@@ -739,7 +732,7 @@ fn run_tui() -> Result<()> {
                         ])
                         .split(frame.area());
 
-                    let title = Paragraph::new("Выбор пакетов для установки")
+                    let title = Paragraph::new(L10N.get("package_list_title", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
@@ -758,13 +751,13 @@ fn run_tui() -> Result<()> {
                         .collect();
 
                     let packages_list = List::new(packages)
-                        .block(Block::default().borders(Borders::ALL).title("Доступные пакеты"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("available_packages", app.language)))
                         .highlight_style(Style::default().bg(Color::DarkGray))
                         .highlight_symbol(">> ");
 
                     frame.render_stateful_widget(packages_list, chunks[1], &mut app.package_state);
 
-                    build_hints(frame, chunks, "↑/↓: Навигация | Пробел: Выбрать | Enter: Подтвердить установку | Esc: Назад | q: Выход");
+                    build_hints(frame, chunks, L10N.get("package_list_navigation_hints", app.language));
                 }
                 ViewState::CustomPackageInput => {
                     let chunks = Layout::default()
@@ -776,16 +769,16 @@ fn run_tui() -> Result<()> {
                         ])
                         .split(frame.area());
 
-                    let title = Paragraph::new("Введите названия пакетов через пробел")
+                    let title = Paragraph::new(L10N.get("instructions_custom_package_input", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
 
                     let input = Paragraph::new(app.custom_package_input.as_str())
-                        .block(Block::default().borders(Borders::ALL).title("Ввод пакетов"));
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("package_input_title", app.language)));
                     frame.render_widget(input, chunks[1]);
 
-                    build_hints(frame, chunks, "Enter: Установить | Esc: Назад | q: Выход");
+                    build_hints(frame, chunks, L10N.get("custom_package_input_navigation_hints", app.language));
                 }
                 ViewState::_ScriptProgress => {
                     let chunks = Layout::default()
@@ -797,7 +790,7 @@ fn run_tui() -> Result<()> {
                         ])
                         .split(frame.area());
 
-                    let title = Paragraph::new("Установка пакетов")
+                    let title = Paragraph::new(L10N.get("script_progress_title", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
@@ -812,7 +805,7 @@ fn run_tui() -> Result<()> {
                         .join("\n");
 
                     let output = Paragraph::new(output_text)
-                        .block(Block::default().borders(Borders::ALL).title("Вывод"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("script_output", app.language)))
                         .wrap(Wrap { trim: true })
                         .scroll((app.scroll_position as u16, 0));
 
@@ -829,8 +822,8 @@ fn run_tui() -> Result<()> {
                     );
 
                     let hints = match app.script_process {
-                        Some(_) => "Выполняется программа... | Esc: Отмена",
-                        None => "Программа завершена | Enter: Закрыть | Esc: Вернуться",
+                        Some(_) => L10N.get("script_running_hints", app.language),
+                        None => L10N.get("script_finished_hints", app.language),
                     };
 
                     build_hints(frame, chunks, hints);
@@ -846,7 +839,7 @@ fn run_tui() -> Result<()> {
                         ])
                         .split(frame.area());
 
-                    let title = Paragraph::new("Выбор типа установки")
+                    let title = Paragraph::new(L10N.get("select_installation_type", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
@@ -855,21 +848,21 @@ fn run_tui() -> Result<()> {
                         .iter()
                         .map(|(name, _, desc)| {
                             ListItem::new(vec![
-                                Line::from(*name),
-                                Line::from(format!("  {}", textwrap::fill(*desc, 60))),
+                                Line::from(L10N.get(*name, app.language)),
+                                Line::from(format!("  {}", textwrap::fill(L10N.get(*desc, app.language).as_str(), 60))),
                             ])
                         })
                         .collect();
 
                     let installations = List::new(items)
-                        .block(Block::default().borders(Borders::ALL).title("Доступные варианты"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("available_installation_types", app.language)))
                         .highlight_style(Style::default().bg(Color::DarkGray))
                         .highlight_symbol(">> ");
 
                     frame.render_stateful_widget(installations, chunks[1], &mut app.installation_type_state);
 
                     if !app.show_confirmation {
-                        build_hints(frame, chunks, "↑/↓: Навигация | Enter: Выбрать | Esc: Назад | q: Выход");
+                        build_hints(frame, chunks, L10N.get("installation_type_navigation_hints", app.language));
                     }
                 }
                 ViewState::UpdateCheck => {
@@ -887,7 +880,7 @@ fn run_tui() -> Result<()> {
                     // Очищаем область под окном
                     frame.render_widget(Clear, area);
 
-                    let title = Paragraph::new("Проверка обновлений")
+                    let title = Paragraph::new(L10N.get("update_check_title", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
@@ -902,11 +895,11 @@ fn run_tui() -> Result<()> {
                         .join("\n");
 
                     let output = Paragraph::new(output_text)
-                        .block(Block::default().borders(Borders::ALL).title("Доступные обновления"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("available_updates", app.language)))
                         .wrap(Wrap { trim: true });
                     frame.render_widget(output, chunks[1]);
 
-                    let hints = "Проверка обновлений... | Esc: Отмена";
+                    let hints = L10N.get("update_check_hints", app.language);
 
                     build_hints(frame, chunks, hints);
 
@@ -920,15 +913,14 @@ fn run_tui() -> Result<()> {
                                 .unwrap_or("0.0.0".to_string());
 
                             if !version.is_empty() && current_version != version {
-                                let confirmation = format!("Найдена новая версия {}!\n\
-                                    Вы действительно хотите обновить систему?", version);
+                                let confirmation = L10N.get_fmt("warning_update_found", app.language, version.as_str());
                                 app.set_confirmation(confirmation, move |this| {
                                     this.set_view_state(ViewState::UpdateCheck);
                                     this.new_version = Some(version);
                                     this.run_selected_action();
                                 });
                             } else {
-                                let confirmation = "Версия системы актуальна".to_string();
+                                let confirmation = L10N.get("version_up_to_date", app.language).to_string();
                                 app.set_confirmation(confirmation, move |this| {
                                     this.set_view_state(ViewState::MainMenu);
                                 });
@@ -949,7 +941,7 @@ fn run_tui() -> Result<()> {
                         ])
                         .split(frame.area());
 
-                    let title = Paragraph::new("Выбор типа очистки")
+                    let title = Paragraph::new(L10N.get("select_uninstall_type", app.language))
                         .block(Block::default().borders(Borders::ALL))
                         .alignment(Alignment::Center);
                     frame.render_widget(title, chunks[0]);
@@ -958,21 +950,21 @@ fn run_tui() -> Result<()> {
                         .iter()
                         .map(|(name, _, desc)| {
                             ListItem::new(vec![
-                                Line::from(*name),
-                                Line::from(format!("  {}", textwrap::fill(*desc, 60))),
+                                Line::from(L10N.get(*name, app.language)),
+                                Line::from(format!("  {}", textwrap::fill(L10N.get(*desc, app.language).as_str(), 60))),
                             ])
                         })
                         .collect();
 
                     let uninstall_list = List::new(items)
-                        .block(Block::default().borders(Borders::ALL).title("Доступные варианты"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("available_installation_types", app.language)))
                         .highlight_style(Style::default().bg(Color::DarkGray))
                         .highlight_symbol(">> ");
 
                     frame.render_stateful_widget(uninstall_list, chunks[1], &mut app.uninstall_type_state);
 
                     if !app.show_confirmation {
-                        build_hints(frame, chunks, "↑/↓: Навигация | Enter: Выбрать | Esc: Назад | q: Выход");
+                        build_hints(frame, chunks, L10N.get("uninstall_type_navigation_hints", app.language));
                     }
                 }
             }
@@ -980,9 +972,9 @@ fn run_tui() -> Result<()> {
             // Подтверждение (если есть)
             if app.show_confirmation {
                 if let Some(confirmation) = &app.confirmation {
-                    let confirmation_text = format!("{}\n\nEnter - Подтвердить\nEsc - Отменить", confirmation);
+                    let confirmation_text = L10N.get_fmt("uninstall_confirmation", app.language, confirmation);
                     let confirmation_block = Paragraph::new(confirmation_text)
-                    .block(Block::default().borders(Borders::ALL).title("Подтверждение"))
+                    .block(Block::default().borders(Borders::ALL).title(L10N.get("confirmation", app.language)))
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: true });
     
@@ -995,9 +987,9 @@ fn run_tui() -> Result<()> {
             // Ошибка (если есть)
             if app.show_error {
                 if let Some(error) = &app.error {
-                    let error_text = format!("{}\n\nНажмите Enter для продолжения", error);
+                    let error_text = L10N.get_fmt("uninstall_error_message", app.language, error);
                     let error_block = Paragraph::new(error_text)
-                        .block(Block::default().borders(Borders::ALL).title("Ошибка"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("error", app.language)))
                         .style(Style::default().fg(Color::Red))
                         .wrap(Wrap { trim: true });
                     
@@ -1010,9 +1002,9 @@ fn run_tui() -> Result<()> {
             // Информационное окно (если есть)
             if app.show_info {
                 if let Some(info) = &app.info_message {
-                    let info_text = format!("{}\n\nНажмите Enter для продолжения", info);
+                    let info_text = L10N.get_fmt("uninstall_info_message", app.language, info);
                     let info_block = Paragraph::new(info_text)
-                        .block(Block::default().borders(Borders::ALL).title("Информация"))
+                        .block(Block::default().borders(Borders::ALL).title(L10N.get("info", app.language)))
                         .style(Style::default().fg(Color::Green))
                         .wrap(Wrap { trim: true });
                     
@@ -1055,6 +1047,13 @@ fn run_tui() -> Result<()> {
                                 KeyCode::Up => app.previous(),
                                 KeyCode::Down => app.next(),
                                 KeyCode::Enter => app.run_selected_action(),
+                                KeyCode::F(2) => {
+                                    app.language = match app.language {
+                                        Language::Russian => Language::English,
+                                        Language::English => Language::Russian,
+                                    };
+                                    app.terminal_clear = true;
+                                },
                                 _ => {}
                             }
                         }
@@ -1117,7 +1116,7 @@ fn run_tui() -> Result<()> {
                                             process.kill();
                                         }
 
-                                        app.status = "Задача отменена".to_string();
+                                        app.status = L10N.get("task_cancelled", app.language);
                                     }
                                     app.set_view_state(app.script_last_view_state);
                                 }
@@ -1177,7 +1176,7 @@ fn run_tui() -> Result<()> {
                                             process.kill();
                                         }
 
-                                        app.status = "Задача отменена".to_string();
+                                        app.status = L10N.get("task_cancelled", app.language);
                                     }
                                     app.set_view_state(ViewState::MainMenu);
                                 }
