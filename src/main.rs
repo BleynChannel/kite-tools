@@ -561,8 +561,8 @@ impl App {
         self.set_view_state(ViewState::UpdateCheck);
         
         // let script_path = format!("{}/.local/share/bin/check_update.sh", home_path());
-        let script_path = "/usr/src/kite-tools/check_update.sh".to_string();
-        let rx = self.run_command("sudo", vec![script_path, "--no-info".to_string()]);
+        let script_path = "/usr/src/kite-tools/check_update.sh";
+        let rx = self.run_command(script_path, vec!["--no-info".to_string()]);
         self.script_receiver = Some(rx);
     }
 
