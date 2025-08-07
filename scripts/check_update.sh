@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Check internet connectivity
+if ! curl -s --max-time 3 --head https://google.com > /dev/null; then
+    echo "Unknown"
+    echo "Error: No internet connection available" >&2
+    exit 1
+fi
+
 # Flag to disable info output
 GITHUB_USER=BleynChannel
 GITHUB_REPO=Kite-Dots
