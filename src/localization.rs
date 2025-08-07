@@ -107,7 +107,7 @@ impl Localization {
         
         // Error handling
         strings.insert("command_success", ["Программа завершилась успешно", "Command completed successfully"]);
-        strings.insert("command_error", ["Программа завершилась с ошибкой: {}", "Command failed: {}"]);
+        strings.insert("command_error", ["Программа завершилась с ошибкой", "Command failed"]);
         strings.insert("command_error_start", ["Ошибка запуска: {}", "Command failed: {}"]);
         strings.insert("command_error_process", ["Ошибка выполнения: {}", "Command failed: {}"]);
         strings.insert("system_already_installed", ["Система уже установлена", "System already installed"]);

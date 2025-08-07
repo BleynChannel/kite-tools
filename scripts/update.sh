@@ -82,8 +82,18 @@ TYPE=$(grep '^BUILD_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
 if [ -z "$VERSION" ]; then
   info "Checking for updates..."
   if [ -f "$SOURCE_DIR/check_update.sh" ]; then
-    NEW_VERSION=$("$SOURCE_DIR/check_update.sh" -t $TYPE --no-info)
-    if [ -n "$NEW_VERSION" ]; then
+    # Run check_update.sh and capture both output and exit status
+    if ! NEW_VERSION=$("$SOURCE_DIR/check_update.sh" -t "$TYPE" --no-info 2>&1); then
+      # If check_update.sh failed, show the error message and exit
+      echo "Error: $NEW_VERSION" >&2
+      exit 1
+    fi
+    
+    # Check if we got a valid version or just an error message
+    if [[ "$NEW_VERSION" == "Unknown" ]]; then
+      info "No updates found"
+      exit 0
+    elif [ -n "$NEW_VERSION" ]; then
       info "New version found: $NEW_VERSION"
       VERSION=$NEW_VERSION
     else
